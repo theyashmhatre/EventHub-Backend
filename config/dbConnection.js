@@ -2,10 +2,10 @@ const mysql = require("mysql");
 
 
 var mysqlConnection = mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "password",
-    database: "virtualcenter",
+    host: "database-1.ccusfblmrtoi.us-east-1.rds.amazonaws.com",
+    user: "admin",
+    password: process.env.dbPassword,
+    database: "eventhub",
     multipleStatements: true
 });
 
