@@ -1,0 +1,32 @@
+{
+  "name": "eventhub-backend",
+  "version": "1.0.0",
+  "description": "Backend for event management app (EventHub)",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theyashmhatre/EventHub-Backend.git"
+  },
+  "keywords": [
+    "event",
+    "management"
+  ],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/theyashmhatre/EventHub-Backend/issues"
+  },
+  "homepage": "https://github.com/theyashmhatre/EventHub-Backend#readme",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "mysql": "^2.18.1",
+    "passport": "^0.6.0",
+    "passport-jwt": "^4.0.1"
+  }
+}
