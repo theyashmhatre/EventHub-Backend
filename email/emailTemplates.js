@@ -1,25 +1,19 @@
 const PORT = process.env.PORT || 3000;
+const confirm_html = require("./htmlTemplates/confirm");
+const verified_html = require("./htmlTemplates/verified")
 
 module.exports = {
 
-  confirm: id => ({
-    subject: 'Confirmation Email',
-    html: `
-    <h1 align="center">Welcome to EventHub</h1>
-      <a href='http://localhost:8000/${id}'>
-        Click here to verify your account
-      </a>
-    `,
-    text: `Copy and paste this link: http://localhost:8000/${id}`
+  confirm: (id, token) => ({
+    subject: 'Confirmation Email - EventHub',
+    html: confirm_html.html(id, token),
+    text: `Copy and paste this link: http://localhost:8000/api/user/email/confirm/${id}/${token}`
   }),
 
   verified: () => ({
     subject: 'Your account has been verified!',
-    html: `
-    <h2 align="center">Welcome to URL Shortner</h2>
-      <a href="https://ur1-sh.herokuapp.com" style="text-align:center">Visit URL Shortner</a>
-    `,
-    text: `Copy and paste this link: https://ur1-sh.herokuapp.com`
+    html: verified_html.html(),
+    text: `Copy and paste this link: http://localhost:8000/api/user/`
   }),
 
   deleted: () => ({

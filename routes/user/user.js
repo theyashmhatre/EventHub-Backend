@@ -58,7 +58,6 @@ router.post("/register", (req, res) => {
                 //generate passwordHash and create user on database
 
                     bcrypt.hash(password, bcrypt.genSaltSync(10), (err, hash) => {
-                        console.log(hash, email);
                         if (err) {
                             console.log("bcrypt error for password", err);
                             res.status(500).json({
@@ -82,7 +81,6 @@ router.post("/register", (req, res) => {
                             `INSERT INTO user SET ?`,
                             user,
                             (sqlErr, result, fields) => {
-                                console.log(result);
                                 if (sqlErr) {
                                     console.log(sqlErr);
                                     res.status(500).json({
@@ -91,11 +89,37 @@ router.post("/register", (req, res) => {
                                         devMsg: "Error occured while adding user into db",
                                     });
                                 } else {
-                                    console.log("User Created");
-                                    sendEmail(email, templates.confirm(result.id));
-                                    return res
-                                        .status(201)
-                                        .json({ devMsg: "New user created successfully" });
+                                    const user_id = result.insertId;
+                                    const payload = {
+                                        id: user_id,
+                                        email: user.email,
+                                        name: user.name,
+                                    };
+                                    jwt.sign(
+                                        payload,
+                                        process.env.secretOrKey,
+                                        {
+                                            expiresIn: 1800, // 1 year in seconds
+                                        },
+                                        (err, token) => {
+                                            if (err) {
+                                                console.log(err);
+                                                res.status(500).json({
+                                                    main: "Something went wrong. Please try again",
+                                                    devError: err,
+                                                    devMsg: "Error while signing jwt token",
+                                                });
+                                            } else {
+
+                                                //returns jwt token to be stored in browser's sessionStorage
+                                                sendEmail(email, templates.confirm(user_id, token));
+                                                return res
+                                                    .status(201)
+                                                    .json({ devMsg: "New user created successfully" });
+                                            }
+                                        }
+                                    );
+                                    
                                 }
                             }
                         );
@@ -312,6 +336,6 @@ router.post("/update/profile", passport.authenticate("jwt", { session: false }),
 });
 
 
-router.get("/email/confirm/:id", emailController.confirmEmail);
+router.get("/email/confirm/:id/:token", emailController.confirmEmail);
 
 module.exports = router;
