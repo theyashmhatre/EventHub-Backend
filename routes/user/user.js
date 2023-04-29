@@ -1,13 +1,18 @@
 const router = require("express").Router();
-const mysqlConnection = require("../config/dbConnection");
+const mysqlConnection = require("../../config/dbConnection");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const {
     isEmptyObject,
     passwordsValidation,
-} = require("../utils/utils");
+} = require("../../utils/utils");
+const passport = require("passport");
+const emailController = require("../../email/emailController");
+const sendEmail = require("../../email/sendEmail")
+const templates = require("../../email/emailTemplates")
 
+// Get all users
 router.get("/", (req, res) => {
     mysqlConnection.query("SELECT * from user", (err, rows, fields) => {
         if (!err) {
@@ -22,19 +27,19 @@ router.get("/", (req, res) => {
 router.post("/register", (req, res) => {
     let {
         email,
-        passsword,
+        password,
         name,
         contact,
         address,
         city
     } = req.body;
     console.log(req.body);
-    const { errors, isValid } = validateRegisterParams(req.body); //validating all parameters before registering user
+    // const { errors, isValid } = validateRegisterParams(req.body); //validating all parameters before registering user
 
-    if (!isValid) return res.status(400).json(errors);
+    // if (!isValid) return res.status(400).json(errors);
 
     mysqlConnection.query(
-        `SELECT * from user where email="${email}" OR username=${username}`,
+        `SELECT * from user where email="${email}"`,
         function (error, result, fields) {
             if (error) {
                 console.log(error.code, error.sqlMessage);
@@ -49,16 +54,11 @@ router.post("/register", (req, res) => {
                 //check if user email already exists
                 if (result[0].email === email)
                     return res.status(400).json({ email: "Email already exists" });
-
-                //check if username already exists
-                if (result[0].username === username)
-                    return res.status(400).json({ username: "Username already exists" });
             } else {
                 //generate passwordHash and create user on database
 
-                bcrypt.genSalt(10, (err, salt) => {
-                    //encrypting user's password
-                    bcrypt.hash(password, salt, (err, hash) => {
+                    bcrypt.hash(password, bcrypt.genSaltSync(10), (err, hash) => {
+                        console.log(hash, email);
                         if (err) {
                             console.log("bcrypt error for password", err);
                             res.status(500).json({
@@ -77,13 +77,12 @@ router.post("/register", (req, res) => {
                             city: city
                         };
 
-                        console.log(result);
-
                         //adding user to database
                         mysqlConnection.query(
                             `INSERT INTO user SET ?`,
                             user,
                             (sqlErr, result, fields) => {
+                                console.log(result);
                                 if (sqlErr) {
                                     console.log(sqlErr);
                                     res.status(500).json({
@@ -93,6 +92,7 @@ router.post("/register", (req, res) => {
                                     });
                                 } else {
                                     console.log("User Created");
+                                    sendEmail(email, templates.confirm(result.id));
                                     return res
                                         .status(201)
                                         .json({ devMsg: "New user created successfully" });
@@ -100,23 +100,22 @@ router.post("/register", (req, res) => {
                             }
                         );
                     });
-                });
             }
         }
     );
 });
 
 router.post("/login", (req, res) => {
-    const { username, password } = req.body;
+    const { email, password } = req.body;
 
     //validating email and password
-    const { errors, isValid } = validateLoginParams(req.body);
+    // const { errors, isValid } = validateLoginParams(req.body);
 
     //Check validation
-    if (!isValid) return res.status(400).json(errors);
+    // if (!isValid) return res.status(400).json(errors);
 
     mysqlConnection.query(
-        `SELECT * from user where username = ${username}`,
+        `SELECT * from user where email = "${email}"`,
         function (error, row, fields) {
             if (error) {
                 console.log(error.code, error.sqlMessage);
@@ -137,14 +136,16 @@ router.post("/login", (req, res) => {
 
             //Check password
             bcrypt
-                .compare(password, user.password)
-                .then((isMatch) => {
+                .compare(password, user.password, function (err, isMatch) {
+                    if (err) {
+                        console.log("ERR", err);
+                    }
                     if (isMatch) {
                         // user password verified, Create JWT Payload
                         const payload = {
                             id: user.id,
                             email: user.email,
-                            name: user.employee_name,
+                            name: user.name,
                         };
 
                         //Sign token
@@ -162,35 +163,155 @@ router.post("/login", (req, res) => {
                                         devError: err,
                                         devMsg: "Error while signing jwt token",
                                     });
-                                }
-
-                                mysqlConnection.query(`INSERT INTO login_history SET username=${username}, status = 1`, (sqlErr, result, fields) => {
-                                    if (err) {
-                                        console.log(err);
-                                        res.status(500).json({
-                                            main: "Something went wrong. Please try again",
-                                            devError: err,
-                                            devMsg: "Error while signing jwt token",
-                                        });
-                                    }
+                                } else {
 
                                     //returns jwt token to be stored in browser's sessionStorage
                                     res.status(200).json({
                                         success: true,
                                         token: token,
                                     });
-                                });
+                                }
                             }
                         );
                     }
                 })
-                .catch((error) => {
-                    console.log(error);
-                    res.status(500).json({
-                        devError: error,
-                        devMsg: "Error occured while comparing passwords",
-                    });
-                });
         }
     );
 });
+
+
+router.get(
+    "/profile/:userId",
+    passport.authenticate("jwt", { session: false }),
+    function (req, res) {
+        try {
+            const { userId } = req.params;
+
+            if (!userId)
+                return res
+                    .status(400)
+                    .json({ main: "Invalid Request", devMsg: "No user id found" });
+
+
+            mysqlConnection.query(
+                `SELECT id, email, name, contact, address, city, is_active, created_at from user where id = ${userId}`,
+                (sqlErr, result, fields) => {
+
+                    if (sqlErr) {
+
+                        return res.status(500).json({
+                            main: "Something went wrong. Please try again.",
+                            devError: sqlErr,
+                            devMsg: "Error occured while fetching user from db",
+                        });
+
+                    } else if (!result.length) {
+
+                        //if no challenge found with the given challengeID
+                        console.log("No user found");
+                        return res.status(200).json({
+                            main: "User you were looking for doesn't exist.",
+                            devError: "User not found in database",
+                        });
+
+                    } else {
+                        let user = result[0];
+
+                        return res.status(200).json(user);
+                    }
+                });
+
+        } catch (error) {
+            return res.status(500).json({
+                main: "Something went wrong. Please try again.",
+                devError: error,
+                devMsg: "Error occured while fetching user"
+            });
+        }
+    }
+);
+
+
+router.post("/update/profile", passport.authenticate("jwt", { session: false }), (req, res) => {
+    try {
+
+        let {
+            name,
+            contact,
+            address,
+            city
+        } = req.body;
+
+        let userId = res.req.user.id;
+        console.log(userId);
+
+        // const { errors, isValid } = updateProfileValidation(req.body);  //validating all parameters before updating user
+
+        // if (!isValid) return res.status(400).json(errors);
+
+        const updatedProfile = {
+            name,
+            contact,
+            address,
+            city
+        };
+
+        mysqlConnection.query(
+            `SELECT *FROM user WHERE id = ${userId}`,
+            (sqlErr, result, fields) => {
+                if (sqlErr) {
+                    return res.status(500).json({
+                        main: "Something went wrong. Please try again.",
+                        devError: sqlErr,
+                        devMsg: "Error occured while fetching user from db",
+                    });
+                } else if (!result[0]) {
+                    //no user found
+                    return res.status(200).json({
+                        main: "No such user exists",
+                        devMsg: "User ID is invalid",
+                    });
+                } else {
+
+                    if (result[0].id != res.req.user.id) {
+                        return res.status(200).json({
+                            main: "You don't have rights to update",
+                            devMsg: "User is Unauthorized",
+                        });
+                    }
+
+                    //storing updating user into db
+                    mysqlConnection.query(
+                        `UPDATE user SET ? WHERE id = ?`,
+                        [updatedProfile, userId],
+                        (sqlErr, result, fields) => {
+                            if (sqlErr) {
+                                console.log(sqlErr);
+                                return res.status(500).json({
+                                    main: "Something went wrong. Please try again.",
+                                    devError: sqlErr,
+                                    devMsg: "Error occured while updating challenge in db",
+                                });
+                            } else {
+                                res.status(200).json({
+                                    main: "User updated Successfully"
+                                });
+                            }
+                        }
+                    )
+                }
+            }
+        )
+    } catch (error) {
+        return res.status(500).json({
+            main: "Something went wrong. Please try again.",
+            devError: error,
+            devMsg: "Error occured while updating user profile",
+        });
+    }
+});
+
+
+router.get("/email/confirm/:id", emailController.confirmEmail);
+
+module.exports = router;

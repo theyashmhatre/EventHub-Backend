@@ -12,12 +12,17 @@ module.exports = passport => {
 
     passport.use(
         new JwtStrategy(opts, (jwt_payload, done) => {
-            mysqlConnection.query(`SELECT * from user where username = ${jwt_payload.username}`, function (err, row, fields) {
+            mysqlConnection.query(`SELECT * from user where id = ${jwt_payload.id}`, function (err, row, fields) {
 
                 if (err) done(null, false);  //returns unauthorized 404 code
 
+                const user = row[0];
+
+                if (!user.is_active) {
+                    return done(null, false);
+                }
+
                 else {
-                    const user = row[0];
                     if (user) {
 
                         return done(null, user);
