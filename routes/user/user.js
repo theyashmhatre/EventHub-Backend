@@ -193,6 +193,13 @@ router.post("/login", (req, res) => {
                                     res.status(200).json({
                                         success: true,
                                         token: token,
+                                        user: {
+                                            name: user.name,
+                                            email: user.email,
+                                            id: user.id,
+                                            contact: user.contact,
+                                            city: user.city
+                                        }
                                     });
                                 }
                             }

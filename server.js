@@ -21,6 +21,8 @@ app.use(
 app.use("/api/user/", require("./routes/user/user"));
 app.use("/api/event/", require("./routes/event/event"));
 
+app.use("/api/pay/", require("./routes/payment/payment"));
+
 // Passport Middleware
 app.use(passport.initialize());
 

@@ -277,4 +277,19 @@ router.get(
   }
 );
 
+router.get("/types", (req, res) => {
+  mysqlConnection.query("SELECT * from event_type", (sqlErr, result, fields) => {
+    if (sqlErr) {
+      console.log(sqlErr);
+      res.status(500).json({
+        main: "Something went wrong. Please try again.",
+        devError: sqlErr,
+        devMsg: "Error occured while fetching from db",
+      });
+    } else {
+      return res.status(200).json(result);
+    }
+  });
+});
+
 module.exports = router;
