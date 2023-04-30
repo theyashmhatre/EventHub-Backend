@@ -349,7 +349,7 @@ router.post("/update/profile", passport.authenticate("jwt", { session: false }),
 router.get("/email/confirm/:id/:token", emailController.confirmEmail);
 
 
-router.post("/details", passport.authenticate("jwt", { session: false }), (req, res) => {
+router.post("/verify/details", passport.authenticate("jwt", { session: false }), (req, res) => {
 
     const token_val = req.header("Authorization");
     const token = token_val.slice(7);
@@ -372,5 +372,27 @@ router.post("/details", passport.authenticate("jwt", { session: false }), (req, 
         }
     });
 });
+
+router.post("/details", passport.authenticate("jwt", { session: false }), (req, res) => {
+    const {email} = req.body;
+
+    mysqlConnection.query(`SELECT id, name, contact from user where email="${email}"`, (sqlErr, result, fields) => {
+        if (sqlErr) {
+            console.log(sqlErr);
+            res.status(500).json({
+                main: "Something went wrong. Please try again.",
+                devError: sqlErr,
+                devMsg: "Error occured while fetching user details from db",
+            });
+        } else if (!result.length) {
+            return res.status(400).json({ err: "No user found. Invalid Email" });
+        } else {
+            return res.status(200).json(result[0]);
+        }
+    });
+
+})
+
+
 
 module.exports = router;
