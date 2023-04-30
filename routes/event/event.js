@@ -14,7 +14,7 @@ router.post(
         description,
         startDate,
         endDate,
-        category,
+        categoryId,
         city,
         location,
         maxparticipants,
@@ -26,7 +26,7 @@ router.post(
         description: description,
         start: startDate,
         end: endDate,
-        category: category,
+        category: categoryId,
         city: city,
         location: location,
         maxparticipants: maxparticipants,
@@ -74,7 +74,7 @@ router.post(
         description,
         startDate,
         endDate,
-        category,
+        categoryId,
         city,
         location,
         maxparticipants,
@@ -86,7 +86,7 @@ router.post(
         description: description,
         start: startDate,
         end: endDate,
-        category: category,
+        category: categoryId,
         city: city,
         location: location,
         maxparticipants: maxparticipants,
@@ -170,43 +170,39 @@ router.get(
 );
 
 //fetches all the event if category not passed or request by category if category passed
-router.get(
-  "/events/:location/:pageNum/:limit",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    const { location } = req.params;
-    const category = req.query.category;
+router.get("/events/:location/:pageNum/:limit", (req, res) => {
+  const { location } = req.params;
+  const category = req.query.categoryId;
 
-    let { limit, pageNum, offset } = generatePaginationValues(req);
+  let { limit, pageNum, offset } = generatePaginationValues(req);
 
-    if (!location || pageNum == null || limit == null)
-      return res
-        .status(400)
-        .json({ main: "Invalid Request", devMsg: "Invalid input parameter" });
+  if (!location || pageNum == null || limit == null)
+    return res
+      .status(400)
+      .json({ main: "Invalid Request", devMsg: "Invalid input parameter" });
 
-    if (category) {
-      const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id and  b.name like ? limit ${limit} offset ${offset};`;
-      mysqlConnection.query(query, category, (err, rows, fields) => {
-        if (!err) {
-          res.status(200).send(rows);
-        } else {
-          console.log(err);
-          res.status(400);
-        }
-      });
-    } else {
-      const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id limit ${limit} offset ${offset};`;
-      mysqlConnection.query(query, (err, rows, fields) => {
-        if (!err) {
-          res.status(200).send(rows);
-        } else {
-          console.log(err);
-          res.status(400);
-        }
-      });
-    }
+  if (category) {
+    const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=? limit ${limit} offset ${offset};`;
+    mysqlConnection.query(query, category, (err, rows, fields) => {
+      if (!err) {
+        res.status(200).send(rows);
+      } else {
+        console.log(err);
+        res.status(400);
+      }
+    });
+  } else {
+    const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id limit ${limit} offset ${offset};`;
+    mysqlConnection.query(query, (err, rows, fields) => {
+      if (!err) {
+        res.status(200).send(rows);
+      } else {
+        console.log(err);
+        res.status(400);
+      }
+    });
   }
-);
+});
 
 //fetches details of the requested event
 router.get(
@@ -278,18 +274,21 @@ router.get(
 );
 
 router.get("/types", (req, res) => {
-  mysqlConnection.query("SELECT * from event_type", (sqlErr, result, fields) => {
-    if (sqlErr) {
-      console.log(sqlErr);
-      res.status(500).json({
-        main: "Something went wrong. Please try again.",
-        devError: sqlErr,
-        devMsg: "Error occured while fetching from db",
-      });
-    } else {
-      return res.status(200).json(result);
+  mysqlConnection.query(
+    "SELECT * from event_type",
+    (sqlErr, result, fields) => {
+      if (sqlErr) {
+        console.log(sqlErr);
+        res.status(500).json({
+          main: "Something went wrong. Please try again.",
+          devError: sqlErr,
+          devMsg: "Error occured while fetching from db",
+        });
+      } else {
+        return res.status(200).json(result);
+      }
     }
-  });
+  );
 });
 
 module.exports = router;
