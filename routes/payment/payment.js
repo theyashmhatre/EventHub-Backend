@@ -13,7 +13,7 @@ var instance = new Razorpay({
 
 
 router.post("/order", passport.authenticate("jwt", { session: false }), (req, res) => {
-    const { amount, user_id, event_id } = req.body;
+    const { amount, user_id, event_id, ticket_count } = req.body;
     console.log("event", event_id);
     var options = {
         amount: amount * 100,  // amount in the smallest currency unit
@@ -21,7 +21,8 @@ router.post("/order", passport.authenticate("jwt", { session: false }), (req, re
         receipt: "order_rcptid_11",
         notes: {
             "user_id": user_id,
-            "event_id": event_id
+            "event_id": event_id,
+            "ticket_count": ticket_count
         }
     };
     instance.orders.create(options, function (err, order) {
@@ -37,21 +38,21 @@ router.post("/order", passport.authenticate("jwt", { session: false }), (req, re
                 order_created_at: d.toISOString(),
                 amount: amount,
                 currency: options.currency,
+                ticket_count: ticket_count
             };
             mysqlConnection.query(`INSERT into payment SET ?`, order_object, (sqlErr, result, fields) => {
                 if (sqlErr) {
                     console.log(sqlErr);
-                    res.status(500).json({
+                    return res.status(500).json({
                         main: "Something went wrong. Please try again.",
                         devError: sqlErr,
                         devMsg: "Error occured while adding user into db",
                     });
                 } else {
-                    return res.status(201).json({main: `Order Created Successfully ${order.id}`});
+                    return res.status(201).json(order);
                 }
             });
         }
-        console.log(order);
     });
 });
 
@@ -59,7 +60,8 @@ router.post("/order", passport.authenticate("jwt", { session: false }), (req, re
 router.post("/payment", passport.authenticate("jwt", { session: false }), (req, res) => {
     const generated_signature = crypto.createHmac('sha256', process.env.RAZORPAY_SECRET);
     generated_signature.update(req.body.razorpay_order_id + "|" + req.body.razorpay_payment_id);
-    order_id = req.body.razorpay_order_id;
+    let order_id = req.body.razorpay_order_id;
+    let {ticket_count, event_id} = req.body;
     if (generated_signature.digest('hex') === req.body.razorpay_signature) {
         payment_object = {
             payment_id: req.body.razorpay_payment_id,
@@ -68,7 +70,7 @@ router.post("/payment", passport.authenticate("jwt", { session: false }), (req, 
         mysqlConnection.query(`UPDATE payment SET ? WHERE order_id="${order_id}"`, payment_object, (sqlErr, result, fields) => {
             if (sqlErr) {
                 console.log(sqlErr);
-                res.status(500).json({
+                return res.status(500).json({
                     main: "Something went wrong. Please try again.",
                     devError: sqlErr,
                     devMsg: "Error occured while updating payment in db",
@@ -78,8 +80,18 @@ router.post("/payment", passport.authenticate("jwt", { session: false }), (req, 
                     main:"No fields updated. Order ID invalid"
                 });
             } else {
-                console.log(result);
-                return res.status(201).json({ main: `Payment Created Successfully ${payment_object.payment_id}` });
+                mysqlConnection.query(`UPDATE event SET ticket_sold = ticket_sold + ${ticket_count} WHERE id=${event_id}`, (sqlErr, result, fields) => {
+                    if (sqlErr) {
+                        console.log(sqlErr);
+                        return res.status(500).json({
+                            main: "Something went wrong. Ticket sold count could not be updated.",
+                            devError: sqlErr,
+                            devMsg: "Error occured while updating payment in db",
+                        });
+                    } else {
+                        return res.status(201).json({ main: `Payment Created Successfully ${payment_object.payment_id}` });
+                    }
+                });
             }
         });
     }
