@@ -21,7 +21,6 @@ router.post("/create", (req, res) => {
       ticketSold,
       tagline,
     } = req.body;
-
     let userToken = req.headers.authorization;
 
     const newEvent = {
@@ -261,7 +260,9 @@ router.get("/eventDetail/:eventId", (req, res) => {
       .json({ main: "Invalid Request", devMsg: "No event id found" });
 
   const queryForEvent =
+
     "SELECT a.id,a.name as eventname,a.description,a.tagline,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
+
 
   const queryForOwner =
     "SELECT a.email,a.name,a.contact,a.address,a.city,b.isAdmin FROM `user` a, `event_owner` b where a.id=b.owner_id and b.event_id=?";
@@ -389,5 +390,6 @@ router.get("/search/:queryString/:pageNum/:limit", (req, res) => {
     });
   }
 });
+
 
 module.exports = router;
