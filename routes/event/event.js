@@ -5,110 +5,107 @@ const { generatePaginationValues } = require("../../utils/utils");
 const jwt = require("jsonwebtoken");
 
 // creates new event
-router.post(
-  "/create",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    try {
-      let {
-        userToken,
-        name,
-        description,
-        startDate,
-        endDate,
-        categoryId,
-        city,
-        location,
-        maxparticipants,
-        price,
-        owners: owners,
-      } = req.body;
+router.post("/create", (req, res) => {
+  try {
+    let {
+      name,
+      description,
+      startDate,
+      endDate,
+      categoryId,
+      city,
+      location,
+      maxparticipants,
+      price,
+      owners: owners,
+      ticketSold,
+      tagline,
+    } = req.body;
+    let userToken = req.headers.authorization;
 
-      const newEvent = {
-        name: name,
-        description: description,
-        start: startDate,
-        end: endDate,
-        category: categoryId,
-        city: city,
-        location: location,
-        maxparticipants: maxparticipants,
-        price: price,
-      };
+    const newEvent = {
+      name: name,
+      description: description,
+      start: startDate,
+      end: endDate,
+      category: categoryId,
+      city: city,
+      location: location,
+      maxparticipants: maxparticipants,
+      price: price,
+      ticket_sold: ticketSold,
+      tagline: tagline,
+    };
 
-      const { id: ownerId, email } = jwt.verify(
-        userToken,
-        process.env.secretOrKey
-      );
+    const { id: ownerId } = jwt.verify(userToken, process.env.secretOrKey);
 
-      console.log(jwt.verify(userToken, process.env.secretOrKey));
+    console.log(jwt.verify(userToken, process.env.secretOrKey));
 
-      mysqlConnection.query(
-        "INSERT INTO event SET ?",
-        newEvent,
-        (sqlErr, result, fields) => {
-          if (sqlErr) {
-            return res.status(500).json({
-              main: "Something went wrong. Please try again.",
-              devError: sqlErr,
-              devMsg: "Error occured while adding event into db",
-            });
-          }
+    mysqlConnection.query(
+      "INSERT INTO event SET ?",
+      newEvent,
+      (sqlErr, result, fields) => {
+        if (sqlErr) {
+          return res.status(500).json({
+            main: "Something went wrong. Please try again.",
+            devError: sqlErr,
+            devMsg: "Error occured while adding event into db",
+          });
         }
-      );
+      }
+    );
 
-      mysqlConnection.query(
-        "SELECT Max(id) from event ",
-        (sqlErr, result, fields) => {
-          if (sqlErr) {
-            return res.status(500).json({
-              main: "Something went wrong. Please try again.",
-              devError: sqlErr,
-              devMsg: "Error occured while getting max id",
-            });
-          } else {
-            let currEventId = result[0]["Max(id)"];
-            mysqlConnection.query(
-              `INSERT INTO eventhub.event_owner (event_id, owner_id, isAdmin) VALUES (${currEventId},${ownerId}, 1);`
-            );
+    mysqlConnection.query(
+      "SELECT Max(id) from event ",
+      (sqlErr, result, fields) => {
+        if (sqlErr) {
+          return res.status(500).json({
+            main: "Something went wrong. Please try again.",
+            devError: sqlErr,
+            devMsg: "Error occured while getting max id",
+          });
+        } else {
+          let currEventId = result[0]["Max(id)"];
+          mysqlConnection.query(
+            `INSERT INTO eventhub.event_owner (event_id, owner_id, isAdmin) VALUES (${currEventId},${ownerId}, 1);`
+          );
 
-            const convertedArray = owners.map((owner) => ({
-              event_id: currEventId,
-              owner_id: owner,
-            }));
+          const convertedArray = owners.map((owner) => ({
+            event_id: currEventId,
+            owner_id: owner,
+          }));
 
-            const values = convertedArray
-              .map((owner) => {
-                return `(${owner.event_id},${owner.owner_id},0)`;
-              })
-              .join(",");
+          const values = convertedArray
+            .map((owner) => {
+              return `(${owner.event_id},${owner.owner_id},0)`;
+            })
+            .join(",");
 
-            mysqlConnection.query(
-              `INSERT INTO event_owner (event_id, owner_id,isAdmin) VALUES ${values}`,
-              (err, result) => {
-                if (!err) {
-                  return res
-                    .status(201)
-                    .json({ devMsg: "New challenge created successfully" });
-                } else {
-                  console.log(err);
-                  res.status(400);
-                }
+          mysqlConnection.query(
+            `INSERT INTO event_owner (event_id, owner_id,isAdmin) VALUES ${values}`,
+            (err, result) => {
+              if (!err) {
+                return res
+                  .status(201)
+                  .json({ devMsg: "New challenge created successfully" });
+              } else {
+                console.log(err);
+                res.status(400);
               }
-            );
-          }
+            }
+          );
         }
-      );
-    } catch (error) {
-      console.log(error);
-      return res.status(500).json({
-        main: "Something went wrong. Please try again.",
-        devError: error,
-        devMsg: "Error occured while creating event",
-      });
-    }
+      }
+    );
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      main: "Something went wrong. Please try again.",
+      devError: error,
+      devMsg: "Error occured while creating event",
+    });
   }
-);
+});
 
 // update challenge
 router.post(
@@ -231,8 +228,8 @@ router.get("/events/:location/:pageNum/:limit", (req, res) => {
       .json({ main: "Invalid Request", devMsg: "Invalid input parameter" });
 
   if (category) {
-    const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id & b.id=? limit ${limit} offset ${offset};`;
-    mysqlConnection.query(query, category, (err, rows, fields) => {
+    const query = `SELECT a.id,a.name as eventname,a.tagline,a.description,a.start,a.ticket_sold, a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id & b.id=? and a.city=? limit ${limit} offset ${offset};`;
+    mysqlConnection.query(query, [category, location], (err, rows, fields) => {
       if (!err) {
         res.status(200).send(rows);
       } else {
@@ -241,8 +238,8 @@ router.get("/events/:location/:pageNum/:limit", (req, res) => {
       }
     });
   } else {
-    const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id limit ${limit} offset ${offset};`;
-    mysqlConnection.query(query, (err, rows, fields) => {
+    const query = `SELECT a.id,a.name as eventname,a.tagline,a.description,,a.ticket_sold, a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id and a.city=? limit ${limit} offset ${offset};`;
+    mysqlConnection.query(query, location, (err, rows, fields) => {
       if (!err) {
         res.status(200).send(rows);
       } else {
@@ -263,7 +260,9 @@ router.get("/eventDetail/:eventId", (req, res) => {
       .json({ main: "Invalid Request", devMsg: "No event id found" });
 
   const queryForEvent =
-    "SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
+
+    "SELECT a.id,a.name as eventname,a.description,a.tagline,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
+
 
   const queryForOwner =
     "SELECT a.email,a.name,a.contact,a.address,a.city,b.isAdmin FROM `user` a, `event_owner` b where a.id=b.owner_id and b.event_id=?";
@@ -337,64 +336,60 @@ router.get("/types", (req, res) => {
   );
 });
 
-//resturns search query
-router.get(
-  "/search/:queryString/:pageNum/:limit",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    try {
-      const { queryString } = req.params;
+//returns search query
+router.get("/search/:queryString/:pageNum/:limit", (req, res) => {
+  try {
+    const { queryString } = req.params;
 
-      let { limit, pageNum, offset } = generatePaginationValues(req);
+    let { limit, pageNum, offset } = generatePaginationValues(req);
 
-      if (!queryString)
-        return res.status(400).json({
-          main: "Invalid Request",
-          devMsg: "No query string id found",
-        });
-
-      if (!pageNum)
-        return res.status(400).json({
-          main: "Invalid Request",
-          devMsg: "No page number found in the request",
-        });
-
-      //query to search for event using a query string
-      //checks if the queried string in present in either title or description of any of the event and returns a list of challenge objects as challege_list
-      mysqlConnection.query(
-        `SELECT * from event where description LIKE '%${queryString}%' OR name LIKE '%${queryString}%' OR tagline LIKE '%${queryString}%' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-        [limit, offset],
-        (sqlErr, result, fields) => {
-          if (sqlErr) {
-            console.log(sqlErr);
-            return res.status(500).json({
-              main: "Something went wrong. Please try again.",
-              devError: sqlErr,
-              devMsg:
-                "Error occured while searching event using a query string",
-            });
-          } else if (!result.length) {
-            return res
-              .status(200)
-              .json({ event_count: result.length, main: "No event found" });
-          } else {
-            let data = {
-              event_count: result.length,
-              event_list: result,
-            };
-
-            res.status(200).json(data);
-          }
-        }
-      );
-    } catch (error) {
-      return res.status(500).json({
-        main: "Something went wrong. Please try again.",
-        devError: error,
-        devMsg: "Error occured while searching for challenges",
+    if (!queryString)
+      return res.status(400).json({
+        main: "Invalid Request",
+        devMsg: "No query string id found",
       });
-    }
+
+    if (!pageNum)
+      return res.status(400).json({
+        main: "Invalid Request",
+        devMsg: "No page number found in the request",
+      });
+
+    //query to search for event using a query string
+    //checks if the queried string in present in either title or description of any of the event and returns a list of challenge objects as challege_list
+    mysqlConnection.query(
+      `SELECT * from event where description LIKE '%${queryString}%' OR name LIKE '%${queryString}%' OR tagline LIKE '%${queryString}%' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [limit, offset],
+      (sqlErr, result, fields) => {
+        if (sqlErr) {
+          console.log(sqlErr);
+          return res.status(500).json({
+            main: "Something went wrong. Please try again.",
+            devError: sqlErr,
+            devMsg: "Error occured while searching event using a query string",
+          });
+        } else if (!result.length) {
+          return res
+            .status(200)
+            .json({ event_count: result.length, main: "No event found" });
+        } else {
+          let data = {
+            event_count: result.length,
+            event_list: result,
+          };
+
+          res.status(200).json(data);
+        }
+      }
+    );
+  } catch (error) {
+    return res.status(500).json({
+      main: "Something went wrong. Please try again.",
+      devError: error,
+      devMsg: "Error occured while searching for challenges",
+    });
   }
-);
+});
+
 
 module.exports = router;
