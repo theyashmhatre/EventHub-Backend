@@ -2,6 +2,7 @@ const router = require("express").Router();
 const mysqlConnection = require("../../config/dbConnection");
 const passport = require("passport");
 const { generatePaginationValues } = require("../../utils/utils");
+const jwt = require("jsonwebtoken");
 
 // creates new event
 router.post(
@@ -10,6 +11,7 @@ router.post(
   (req, res) => {
     try {
       let {
+        userToken,
         name,
         description,
         startDate,
@@ -19,6 +21,7 @@ router.post(
         location,
         maxparticipants,
         price,
+        owners: owners,
       } = req.body;
 
       const newEvent = {
@@ -33,8 +36,15 @@ router.post(
         price: price,
       };
 
+      const { id: ownerId, email } = jwt.verify(
+        userToken,
+        process.env.secretOrKey
+      );
+
+      console.log(jwt.verify(userToken, process.env.secretOrKey));
+
       mysqlConnection.query(
-        `INSERT INTO event SET ?`,
+        "INSERT INTO event SET ?",
         newEvent,
         (sqlErr, result, fields) => {
           if (sqlErr) {
@@ -43,10 +53,51 @@ router.post(
               devError: sqlErr,
               devMsg: "Error occured while adding event into db",
             });
+          }
+        }
+      );
+
+      mysqlConnection.query(
+        "SELECT Max(id) from event ",
+        (sqlErr, result, fields) => {
+          if (sqlErr) {
+            return res.status(500).json({
+              main: "Something went wrong. Please try again.",
+              devError: sqlErr,
+              devMsg: "Error occured while getting max id",
+            });
           } else {
-            return res
-              .status(201)
-              .json({ devMsg: "New event created successfully" });
+            let currEventId = result[0]["Max(id)"];
+            mysqlConnection.query(
+              `INSERT INTO eventhub.event_owner (event_id, owner_id, isAdmin) VALUES (${currEventId},${ownerId}, 1);`
+            );
+
+            const ownerArray = JSON.parse(owners);
+            console.log(ownerArray);
+            const convertedArray = ownerArray.map((owner) => ({
+              event_id: currEventId,
+              owner_id: owner,
+            }));
+
+            const values = convertedArray
+              .map((owner) => {
+                return `(${owner.event_id},${owner.owner_id},0)`;
+              })
+              .join(",");
+
+            mysqlConnection.query(
+              `INSERT INTO event_owner (event_id, owner_id,isAdmin) VALUES ${values}`,
+              (err, result) => {
+                if (!err) {
+                  return res
+                    .status(201)
+                    .json({ devMsg: "New challenge created successfully" });
+                } else {
+                  console.log(err);
+                  res.status(400);
+                }
+              }
+            );
           }
         }
       );
@@ -273,6 +324,7 @@ router.get(
   }
 );
 
+//fetches all the categories.
 router.get("/types", (req, res) => {
   mysqlConnection.query(
     "SELECT * from event_type",
@@ -290,5 +342,65 @@ router.get("/types", (req, res) => {
     }
   );
 });
+
+//resturns search query
+router.get(
+  "/search/:queryString/:pageNum/:limit",
+  passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    try {
+      const { queryString } = req.params;
+
+      let { limit, pageNum, offset } = generatePaginationValues(req);
+
+      if (!queryString)
+        return res.status(400).json({
+          main: "Invalid Request",
+          devMsg: "No query string id found",
+        });
+
+      if (!pageNum)
+        return res.status(400).json({
+          main: "Invalid Request",
+          devMsg: "No page number found in the request",
+        });
+
+      //query to search for event using a query string
+      //checks if the queried string in present in either title or description of any of the event and returns a list of challenge objects as challege_list
+      mysqlConnection.query(
+        `SELECT * from event where description LIKE '%${queryString}%' OR name LIKE '%${queryString}%' OR tagline LIKE '%${queryString}%' ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [limit, offset],
+        (sqlErr, result, fields) => {
+          if (sqlErr) {
+            console.log(sqlErr);
+            return res.status(500).json({
+              main: "Something went wrong. Please try again.",
+              devError: sqlErr,
+              devMsg:
+                "Error occured while searching event using a query string",
+            });
+          } else if (!result.length) {
+            return res
+              .status(200)
+              .json({ event_count: result.length, main: "No event found" });
+          } else {
+            let data = {
+              event_count: result.length,
+              event_list: result,
+            };
+
+            res.status(200).json(data);
+          }
+        }
+      );
+    } catch (error) {
+      return res.status(500).json({
+        main: "Something went wrong. Please try again.",
+        devError: error,
+        devMsg: "Error occured while searching for challenges",
+      });
+    }
+  }
+);
 
 module.exports = router;
