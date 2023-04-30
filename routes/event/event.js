@@ -228,7 +228,7 @@ router.get("/events/:location/:pageNum/:limit", (req, res) => {
       .json({ main: "Invalid Request", devMsg: "Invalid input parameter" });
 
   if (category) {
-    const query = `SELECT a.id,a.name as eventname,a.tagline,a.description,a.start,a.ticket_sold, a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id & b.id=? and a.city=? limit ${limit} offset ${offset};`;
+    const query = `SELECT a.id,a.name as eventname,a.ticket_sold,a.tagline,a.description,a.start,a.ticket_sold, a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id & b.id=? and a.city=? order by created_at desc limit ${limit} offset ${offset};`;
     mysqlConnection.query(query, [category, location], (err, rows, fields) => {
       if (!err) {
         res.status(200).send(rows);
@@ -238,7 +238,7 @@ router.get("/events/:location/:pageNum/:limit", (req, res) => {
       }
     });
   } else {
-    const query = `SELECT a.id,a.name as eventname,a.tagline,a.description,,a.ticket_sold, a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id and a.city=? limit ${limit} offset ${offset};`;
+    const query = `SELECT a.id,a.name as eventname,a.tagline,a.description,,a.ticket_sold, a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id and a.city=? order by created_at desc limit ${limit} offset ${offset};`;
     mysqlConnection.query(query, location, (err, rows, fields) => {
       if (!err) {
         res.status(200).send(rows);
@@ -260,9 +260,7 @@ router.get("/eventDetail/:eventId", (req, res) => {
       .json({ main: "Invalid Request", devMsg: "No event id found" });
 
   const queryForEvent =
-
-    "SELECT a.id,a.name as eventname,a.description,a.tagline,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
-
+    "SELECT a.id,a.name as eventname,a.ticket_sold,a.description,a.tagline,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
 
   const queryForOwner =
     "SELECT a.email,a.name,a.contact,a.address,a.city,b.isAdmin FROM `user` a, `event_owner` b where a.id=b.owner_id and b.event_id=?";
@@ -390,6 +388,5 @@ router.get("/search/:queryString/:pageNum/:limit", (req, res) => {
     });
   }
 });
-
 
 module.exports = router;
