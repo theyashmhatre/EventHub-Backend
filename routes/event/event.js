@@ -182,7 +182,7 @@ router.get("/events/:location/:pageNum/:limit", (req, res) => {
       .json({ main: "Invalid Request", devMsg: "Invalid input parameter" });
 
   if (category) {
-    const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=? limit ${limit} offset ${offset};`;
+    const query = `SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name as category FROM event a, event_type b where a.category=b.id & b.id=? limit ${limit} offset ${offset};`;
     mysqlConnection.query(query, category, (err, rows, fields) => {
       if (!err) {
         res.status(200).send(rows);
