@@ -72,9 +72,7 @@ router.post(
               `INSERT INTO eventhub.event_owner (event_id, owner_id, isAdmin) VALUES (${currEventId},${ownerId}, 1);`
             );
 
-            const ownerArray = JSON.parse(owners);
-            console.log(ownerArray);
-            const convertedArray = ownerArray.map((owner) => ({
+            const convertedArray = owners.map((owner) => ({
               event_id: currEventId,
               owner_id: owner,
             }));
@@ -256,73 +254,69 @@ router.get("/events/:location/:pageNum/:limit", (req, res) => {
 });
 
 //fetches details of the requested event
-router.get(
-  "/eventDetail/:eventId",
-  passport.authenticate("jwt", { session: false }),
-  (req, res) => {
-    const { eventId } = req.params;
+router.get("/eventDetail/:eventId", (req, res) => {
+  const { eventId } = req.params;
 
-    if (!eventId)
-      return res
-        .status(400)
-        .json({ main: "Invalid Request", devMsg: "No event id found" });
+  if (!eventId)
+    return res
+      .status(400)
+      .json({ main: "Invalid Request", devMsg: "No event id found" });
 
-    const queryForEvent =
-      "SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
+  const queryForEvent =
+    "SELECT a.id,a.name as eventname,a.description,a.start,a.end,a.city,a.location,a.maxparticipants,a.price,b.name FROM `event` a,  `event_type` b where a.category=b.id  and a.id=? ;";
 
-    const queryForOwner =
-      "SELECT a.email,a.name,a.contact,a.address,a.city,b.isAdmin FROM `user` a, `event_owner` b where a.id=b.owner_id and b.event_id=?";
+  const queryForOwner =
+    "SELECT a.email,a.name,a.contact,a.address,a.city,b.isAdmin FROM `user` a, `event_owner` b where a.id=b.owner_id and b.event_id=?";
 
-    //query to find if the event exists
-    mysqlConnection.query(
-      queryForEvent,
-      eventId,
-      (sqlErr, eventResult, fields) => {
-        if (sqlErr) {
-          return res.status(500).json({
-            main: "Something went wrong. Please try again.",
-            devError: sqlErr,
-            devMsg: "Error occured while fetching challenge from db",
-          });
-        } else if (!eventResult.length) {
-          //if no challenge found
-          return res.status(200).json({
-            main: "No such event exists",
-            devMsg: "Event Id is invalid",
-          });
-        } else {
-          //Nested query to fetch owners
-          mysqlConnection.query(
-            queryForOwner,
-            eventId,
-            (sqlErr, ownerResult, fields) => {
-              if (sqlErr) {
-                return res.status(500).json({
-                  main: "Something went wrong. Please try again.",
-                  devError: sqlErr,
-                  devMsg: "Error occured while fetching owners from db",
-                });
-              } else if (!ownerResult.length) {
-                //if no challenge found
-                return res.status(200).json({
-                  main: "No owners exists",
-                  devMsg: "Event Id is invalid",
-                });
-              } else {
-                let data = {
-                  event_detail: eventResult,
-                  owner_count: ownerResult.length,
-                  owner_detail: ownerResult,
-                };
-                res.status(200).json(data);
-              }
+  //query to find if the event exists
+  mysqlConnection.query(
+    queryForEvent,
+    eventId,
+    (sqlErr, eventResult, fields) => {
+      if (sqlErr) {
+        return res.status(500).json({
+          main: "Something went wrong. Please try again.",
+          devError: sqlErr,
+          devMsg: "Error occured while fetching challenge from db",
+        });
+      } else if (!eventResult.length) {
+        //if no challenge found
+        return res.status(200).json({
+          main: "No such event exists",
+          devMsg: "Event Id is invalid",
+        });
+      } else {
+        //Nested query to fetch owners
+        mysqlConnection.query(
+          queryForOwner,
+          eventId,
+          (sqlErr, ownerResult, fields) => {
+            if (sqlErr) {
+              return res.status(500).json({
+                main: "Something went wrong. Please try again.",
+                devError: sqlErr,
+                devMsg: "Error occured while fetching owners from db",
+              });
+            } else if (!ownerResult.length) {
+              //if no challenge found
+              return res.status(200).json({
+                main: "No owners exists",
+                devMsg: "Event Id is invalid",
+              });
+            } else {
+              let data = {
+                event_detail: eventResult,
+                owner_count: ownerResult.length,
+                owner_detail: ownerResult,
+              };
+              res.status(200).json(data);
             }
-          );
-        }
+          }
+        );
       }
-    );
-  }
-);
+    }
+  );
+});
 
 //fetches all the categories.
 router.get("/types", (req, res) => {
