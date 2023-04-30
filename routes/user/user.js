@@ -99,7 +99,7 @@ router.post("/register", (req, res) => {
                                         payload,
                                         process.env.secretOrKey,
                                         {
-                                            expiresIn: 1800, // 1 year in seconds
+                                            expiresIn: 31556926, // 1 year in seconds
                                         },
                                         (err, token) => {
                                             if (err) {
@@ -156,6 +156,9 @@ router.post("/login", (req, res) => {
                 return res
                     .status(404)
                     .json({ main: "User does not exist. Please register and continue" });
+            }
+            if (!user.is_active) {
+                return res.status(400).json({main: "Account not active yet. Please confirm your email."});
             }
 
             //Check password
@@ -344,5 +347,30 @@ router.post("/update/profile", passport.authenticate("jwt", { session: false }),
 
 
 router.get("/email/confirm/:id/:token", emailController.confirmEmail);
+
+
+router.post("/details", passport.authenticate("jwt", { session: false }), (req, res) => {
+
+    const token_val = req.header("Authorization");
+    const token = token_val.slice(7);
+    if (!token) return res.status(400).json({err: "No header found. Bad Request"});
+
+    const verified = jwt.verify(token, process.env.secretOrKey);
+
+    mysqlConnection.query(`SELECT id, email, name, contact, city from user where id=${verified.id}`, (sqlErr, result, fields) => {
+        if (sqlErr) {
+            console.log(sqlErr);
+            res.status(500).json({
+                main: "Something went wrong. Please try again.",
+                devError: sqlErr,
+                devMsg: "Error occured while fetching user details from db",
+            });
+        } else if (!result.length) {
+            return res.status(400).json({err: "No user found. Invalid Token"});
+        } else {
+            return res.status(200).json(result);
+        }
+    });
+});
 
 module.exports = router;
